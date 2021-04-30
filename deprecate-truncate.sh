@@ -18,13 +18,15 @@ deprecateTruncate() {
 	local defChHead=$(defaultChannelHead "${configs}" "${package}")
 
 	for ch in $(getBundleChannels "${bundle}"); do
-		for anc in $(ancestors "${configs}" "${package}" "${ch}" "${bundleName}"); do
+		ancs=$(ancestors "${configs}" "${package}" "${ch}" "${bundleName}")
+		if [[ "$ancs" == "" ]]; then continue; fi
+		for anc in $ancs; do
 			if [[ "${anc}" == "${defChHead}" ]]; then
 				echo "Cannot deprecate \"${bundle_image}\" because it would cause removal of \"${anc}\", which is the head of the default channel"
 				exit 1
 			fi
-			configs=$(removeBundle "${configs}" "${package}" "${anc}")
 		done
+		configs=$(removeBundles "${configs}" "${package}" "${ancs}")
 	done
 	mkdir -p $tmpdir/output
 	deprecateBundle "${configs}" "${package}" "${bundleName}" > $tmpdir/output/index.yaml
@@ -90,11 +92,18 @@ ancestors() {
 	sortChannel "${configs}" "${package}" "${channel}" | tac | sed -n "/^${bundle}$/,\$p" | sed 1d
 }
 
-removeBundle() {
-	local configs=$1 package=$2 bundle=$3
-	configs=$(echo "${configs}" | yq eval-all "[.] | del(.[] | select(.schema==\"olm.bundle\" and .package==\"${package}\" and .name==\"${bundle}\") ) | .[] | splitDoc" -)
-	#echo "yq eval \"del(.properties.[] | select(.type == \\\"olm.channel\\\" and .value.replaces == \\\"${bundle}\\\") | .value.replaces )\"" 1>&2
-	configs=$(echo "${configs}" | yq eval "del(.properties.[] | select(.type == \"olm.channel\" and .value.replaces == \"${bundle}\") | .value.replaces )" -)
+removeBundles() {
+	local configs=$1 package=$2 bundles=$3
+
+	local bundleMatchers=""	replaceMatchers=""
+	for b in ${bundles}; do
+		bundleMatchers="$bundleMatchers or .name == \"${b}\""
+		replaceMatchers="$replaceMatchers or .value.replaces == \"${b}\""
+	done
+	bundleMatchers="(${bundleMatchers#" or "})"
+	replaceMatchers="(${replaceMatchers#" or "})"
+	configs=$(echo "${configs}" | yq eval-all "[.] | del(.[] | select(.schema==\"olm.bundle\" and .package==\"${package}\" and ${bundleMatchers}) ) | .[] | splitDoc" -)
+	configs=$(echo "${configs}" | yq eval "del(.properties.[] | select(.type == \"olm.channel\" and ${replaceMatchers}) | .value.replaces )" -)
 	echo "${configs}"
 }
 
