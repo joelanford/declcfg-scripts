@@ -8,7 +8,7 @@ deprecateTruncate() {
 	local configs_ref=$1 bundle_image=$2
 
 	tmpdir=$(mktemp -d -t deprecatetruncate-XXXXXXX)
-	#trap "rm -rf $tmpdir" EXIT
+	trap "rm -rf $tmpdir" EXIT
 	mkdir -p $tmpdir/input
 	opm alpha unpack ${configs_ref} > $tmpdir/input/index.yaml
 	opm validate $tmpdir/input
