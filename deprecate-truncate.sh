@@ -10,8 +10,8 @@ deprecateTruncate() {
 	tmpdir=$(mktemp -d -t deprecatetruncate-XXXXXXX)
 	trap "rm -rf $tmpdir" EXIT
 	mkdir -p $tmpdir/input
-	opm alpha unpack ${configs_ref} > $tmpdir/input/index.yaml
-	opm validate $tmpdir/input
+	opm alpha unpack ${configs_ref} -o yaml > $tmpdir/input/index.yaml
+	opm alpha validate $tmpdir/input
 
 	local configs=$(cat $tmpdir/input/index.yaml)
         local bundle=$(getBundleFromImage "${configs}" "${bundle_image}")
@@ -32,7 +32,7 @@ deprecateTruncate() {
 	done
 	mkdir -p $tmpdir/output
 	deprecateBundle "${configs}" "${package}" "${bundleName}" > $tmpdir/output/index.yaml
-	opm validate $tmpdir/output
+	opm alpha validate $tmpdir/output
 	cat $tmpdir/output/index.yaml
 }
 

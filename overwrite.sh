@@ -10,8 +10,8 @@ overwrite() {
 	tmpdir=$(mktemp -d -t overwrite-XXXXXXX)
 	trap "rm -rf $tmpdir" EXIT
 	mkdir -p $tmpdir/input
-	opm alpha unpack ${configs_ref} > $tmpdir/input/index.yaml
-	opm validate $tmpdir/input
+	opm alpha unpack ${configs_ref} -o yaml > $tmpdir/input/index.yaml
+	opm alpha validate $tmpdir/input
 
 	local configs=$(cat $tmpdir/input/index.yaml)
         local bundle=$(getBundleFromImage "${configs}" "${bundle_image}")
@@ -28,12 +28,12 @@ overwrite() {
 
 	mkdir -p $tmpdir/tmp
 	removeBundles "${configs}" "${package}" "${bundleName}" > $tmpdir/tmp/index.yaml
-	opm alpha unpack ${bundle_image} >> $tmpdir/tmp/index.yaml
+	opm alpha unpack ${bundle_image} -o yaml >> $tmpdir/tmp/index.yaml
 
 	mkdir -p $tmpdir/output
-	opm alpha unpack $tmpdir/tmp > $tmpdir/output/index.yaml
+	opm alpha unpack $tmpdir/tmp -o yaml > $tmpdir/output/index.yaml
 
-	opm validate $tmpdir/output
+	opm alpha validate $tmpdir/output
 	cat $tmpdir/output/index.yaml
 }
 
