@@ -111,6 +111,22 @@ deprecateBundle() {
 	" -
 }
 
+fmt() {
+        local configsDir=$1 dir=$2
+
+        local configs=$(opm alpha render "$configsDir" -o json)
+        local files=$(echo "$configs" | jq --arg dir "$dir" -sc 'group_by(if .schema=="olm.package" then .name else .package end) | .[] | {filename: ($dir + "/" + .[0].name + "/" + .[0].name + ".yaml"), blobs: . }')
+
+        IFS=$'\n'
+        for f in $files; do
+                local filename=$(echo "$f" | jq -r '.filename')
+                echo "Populating $filename"
+                local blobs=$(echo "$f" | yq e -P '.blobs[] | splitDoc' -)
+                mkdir -p $(dirname $filename)
+                echo "$blobs" > "$filename"
+        done
+}
+
 debug() {
 	echo $@ >&2
 }

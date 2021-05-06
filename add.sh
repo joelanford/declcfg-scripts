@@ -6,7 +6,7 @@ set -o pipefail
 . "$(dirname "$0")/lib/funcs.sh"
 
 add() {
-	local configs_ref=$1 bundleImage=$2
+	local configsRef=$1 bundleImage=$2
 
 	##
 	## Setup temporary working directories
@@ -21,7 +21,7 @@ add() {
 	## Render and validate the provided DC reference,
 	## then load them into the $configs variable
 	##
-	opm alpha render ${configs_ref} -o yaml > ${tmpdir}/input/index.yaml
+	opm alpha render ${configsRef} -o yaml > ${tmpdir}/input/index.yaml
 	opm alpha validate ${tmpdir}/input
 	local configs=$(cat ${tmpdir}/input/index.yaml)
 
@@ -80,12 +80,20 @@ add() {
 	## Inline bundle objects for the added bundle
 	declcfg-inline-bundles ${tmpdir}/tmp ${bundleImage}
 
-	## Render the final tmp/index.yaml to output/index.yaml
+	## Render the final tmp/index.yaml to output/
 	## Validate the final output
-	## Print the final updated configs to stdout
-	opm alpha render ${tmpdir}/tmp -o yaml > $tmpdir/output/index.yaml
-	opm alpha validate ${tmpdir}/output
-	cat ${tmpdir}/output/index.yaml
+	## Format the input directory or print the final updated configs to stdout (if the input was an index image)
+	if [[ -d "${configsRef}" ]]; then
+		mv ${configsRef} ${configsRef}.bak
+		fmt ${tmpdir}/tmp ${tmpdir}/output
+		opm alpha validate ${tmpdir}/output
+		mv ${tmpdir}/output ${configsRef}
+		rm -r ${configsRef}.bak
+	else
+		opm alpha render -o yaml ${tmpdir}/tmp > ${tmpdir}/output/index.yaml
+		opm alpha validate ${tmpdir}/output
+		cat ${tmpdir}/output/index.yaml
+	fi
 }
 
 add "$1" "$2"
