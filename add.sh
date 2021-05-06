@@ -3,7 +3,7 @@
 set -eu
 set -o pipefail
 
-. funcs.sh
+. "$(dirname "$0")/lib/funcs.sh"
 
 add() {
 	local configs_ref=$1 bundleImage=$2
@@ -88,23 +88,4 @@ add() {
 	cat ${tmpdir}/output/index.yaml
 }
 
-removeIfLatest() {
-	local configs=$1 bundle=$2
-
-	local bundlePackageName=$(echo "${bundle}" | yq e '.package' -)
-	local bundleName=$(echo "${bundle}" | yq e '.name' -)
-
-	for ch in $(getBundleChannels "${bundle}"); do
-		descs=$(descendents "${configs}" "${bundlePackageName}" "${ch}" "${bundleName}")
-		if [[ "$descs" != "" ]]; then
-			echo "Cannot overwrite \"${bundleName}\", it is not the head of channel \"${ch}\"" >&2
-			exit 1
-		fi
-	done
-
-	removeBundles "${configs}" "${bundlePackageName}" "${bundleName}"
-}
-
 add "$1" "$2"
-
-

@@ -85,6 +85,23 @@ removeBundles() {
 	echo "${configs}"
 }
 
+removeIfLatest() {
+        local configs=$1 bundle=$2
+
+        local bundlePackageName=$(echo "${bundle}" | yq e '.package' -)
+        local bundleName=$(echo "${bundle}" | yq e '.name' -)
+
+        for ch in $(getBundleChannels "${bundle}"); do
+                descs=$(descendents "${configs}" "${bundlePackageName}" "${ch}" "${bundleName}")
+                if [[ "$descs" != "" ]]; then
+                        echo "Cannot overwrite \"${bundleName}\", it is not the head of channel \"${ch}\"" >&2
+                        exit 1
+                fi
+        done
+
+        removeBundles "${configs}" "${bundlePackageName}" "${bundleName}"
+}
+
 deprecateBundle() {
 	local configs=$1 package=$2 bundle=$3
 	echo "${configs}" | yq e "\

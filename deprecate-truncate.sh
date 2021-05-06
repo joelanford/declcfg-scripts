@@ -2,7 +2,7 @@
 
 set -eu
 
-. funcs.sh
+. "$(dirname "$0")/lib/funcs.sh"
 
 deprecateTruncate() {
 	local configs_ref=$1 bundle_image=$2
