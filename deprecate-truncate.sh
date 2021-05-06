@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -e
+set -eu
 
 . funcs.sh
 
@@ -9,12 +9,21 @@ deprecateTruncate() {
 
 	tmpdir=$(mktemp -d -t deprecatetruncate-XXXXXXX)
 	trap "rm -rf $tmpdir" EXIT
+
 	mkdir -p $tmpdir/input
-	opm alpha unpack ${configs_ref} -o yaml > $tmpdir/input/index.yaml
+	mkdir -p $tmpdir/output
+
+	opm alpha render ${configs_ref} -o yaml > $tmpdir/input/index.yaml
 	opm alpha validate $tmpdir/input
 
 	local configs=$(cat $tmpdir/input/index.yaml)
         local bundle=$(getBundleFromImage "${configs}" "${bundle_image}")
+
+	if [[ -z "${bundle}" ]]; then
+		echo "Cannot deprecate \"${bundle_image}\": not found in index"
+		exit 1
+	fi
+
         local package=$(echo "${bundle}" | yq e '.package' -)
         local bundleName=$(echo "${bundle}" | yq e '.name' -)
 	local defChHead=$(defaultChannelHead "${configs}" "${package}")
@@ -30,7 +39,7 @@ deprecateTruncate() {
 		done
 		configs=$(removeBundles "${configs}" "${package}" "${ancs}")
 	done
-	mkdir -p $tmpdir/output
+
 	deprecateBundle "${configs}" "${package}" "${bundleName}" > $tmpdir/output/index.yaml
 	opm alpha validate $tmpdir/output
 	cat $tmpdir/output/index.yaml
