@@ -5,6 +5,11 @@ getBundleFromImage() {
 	echo "${configs}" | yq e "select(.image==\"${image}\")" -
 }
 
+getBundle() {
+	local configs=$1 package=$2 bundleName=$3
+	echo "${configs}" | yq e "select(.schema==\"olm.bundle\" and .package==\"${package}\" and .name==\"${bundleName}\")" -
+}
+
 defaultChannelHead() {
 	local configs=$1 package=$2
 	channelHead "${configs}" "${package}" "$(defaultChannel "${configs}" "${package}")"
@@ -70,7 +75,7 @@ removeBundles() {
 	bundleMatchers="(${bundleMatchers#" or "})"
 	replaceMatchers="(${replaceMatchers#" or "})"
 
-	configs=$(echo "${configs}" | yq eval-all "[.] | del(.[] | select(.schema==\"olm.bundle\" and .package==\"${package}\" and ${bundleMatchers}) ) | .[] | splitDoc" -)
+	configs=$(echo "${configs}" | yq eval-all "[.] | del(.[] | select(.schema==\"olm.bundle\" and .package==\"${package}\" and ${bundleMatchers})) | .[] | splitDoc" -)
 	configs=$(echo "${configs}" | yq eval "del(.properties[] | select(.type == \"olm.channel\" and ${replaceMatchers}) | .value.replaces )" -)
 	echo "${configs}"
 }
@@ -85,7 +90,7 @@ deprecateBundle() {
 }
 
 debug() {
-	echo $@ 1>&2
+	echo $@ >&2
 }
 
 #getBundleNameAndVersion() {
