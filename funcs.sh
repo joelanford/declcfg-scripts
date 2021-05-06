@@ -5,6 +5,11 @@ getBundleFromImage() {
 	echo "${configs}" | yq e "select(.image==\"${image}\")" -
 }
 
+getPackage() {
+	local configs=$1 package=$2
+	echo "${configs}" | yq e "select(.schema==\"olm.package\" and .name==\"${package}\")" -
+}
+
 getBundle() {
 	local configs=$1 package=$2 bundleName=$3
 	echo "${configs}" | yq e "select(.schema==\"olm.bundle\" and .package==\"${package}\" and .name==\"${bundleName}\")" -
