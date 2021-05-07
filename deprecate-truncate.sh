@@ -7,7 +7,11 @@ set -o pipefail
 . "$(dirname "$0")/lib/funcs.sh"
 
 deprecateTruncate() {
-	local configsRef=$1 bundleImage=$2
+	local configsDir=$1 bundleImage=$2
+	if [[ ! -d "${configsDir}" ]]; then
+		echo "${configsDir} is not a directory"
+		exit 1
+	fi	
 
 	##
 	## Setup temporary working directories
@@ -20,15 +24,22 @@ deprecateTruncate() {
 	mkdir -p $tmpdir/output
 
 	##
+	## Render the provided bundle image reference
+	## Query its packageName and name
+	##
+	local inputBundle inputBundlePackageName
+	inputBundle=$(opm alpha render "${bundleImage}" -o yaml)
+	inputBundlePackageName=$(echo "${inputBundle}" | yq e '.package' -)
+
+	##
         ## Render and validate the provided DC reference,
         ## then load them into the $configs variable
         ##
-	opm alpha render ${configsRef} -o yaml > $tmpdir/input/index.yaml
+	local configs packageDir
+	packageDir="${configsDir}/${inputBundlePackageName}"
+	opm alpha render ${packageDir} -o yaml > $tmpdir/input/index.yaml
 	opm alpha validate $tmpdir/input
-	local configs
 	configs=$(cat $tmpdir/input/index.yaml)
-
-
 
 	##
 	## Find the bundle created from the bundle image
@@ -73,20 +84,13 @@ deprecateTruncate() {
 	deprecateBundle "${configs}" "${bundlePackageName}" "${bundleName}" > $tmpdir/tmp/index.yaml
 
 	## Render the final tmp/index.yaml to output/
-        ## Validate the final output
-        ## Format the input directory or print the final updated configs to stdout (if the input was an index image)
-	if [[ -d "${configsRef}" ]]; then
-		mv ${configsRef} ${configsRef}.bak
-		fmt ${tmpdir}/tmp ${tmpdir}/output
-		opm alpha validate ${tmpdir}/output
-		mv ${tmpdir}/output ${configsRef}
-		rm -r ${configsRef}.bak
-	else
-		opm alpha render -o yaml ${tmpdir}/tmp > ${tmpdir}/output/index.yaml
-		opm alpha validate ${tmpdir}/output
-		cat ${tmpdir}/output/index.yaml
-	fi
-
+	## Validate the final output
+	## Format the input directory
+	opm alpha render ${tmpdir}/tmp -o yaml > ${tmpdir}/output/${inputBundlePackageName}.yaml
+	opm alpha validate ${tmpdir}/output
+	mv ${packageDir} ${packageDir}.bak
+	mv ${tmpdir}/output ${packageDir}
+	rm -r ${packageDir}.bak
 }
 
 deprecateTruncate "$1" "$2"

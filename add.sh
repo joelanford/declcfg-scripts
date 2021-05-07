@@ -7,7 +7,12 @@ set -o pipefail
 . "$(dirname "$0")/lib/funcs.sh"
 
 add() {
-	local configsRef=$1 bundleImage=$2
+	local configsDir=$1 bundleImage=$2
+
+	if [[ ! -d "${configsDir}" ]]; then
+		echo "${configsDir} is not a directory"
+		exit 1
+	fi
 
 	##
 	## Setup temporary working directories
@@ -20,25 +25,28 @@ add() {
 	mkdir -p ${tmpdir}/output
 
 	##
-	## Render and validate the provided DC reference,
-	## then load them into the $configs variable
-	##
-	opm alpha render ${configsRef} -o yaml > ${tmpdir}/input/index.yaml
-	opm alpha validate ${tmpdir}/input
-	local configs
-	configs=$(cat ${tmpdir}/input/index.yaml)
-
-
-	##
 	## Render the provided bundle image reference
 	## Query its packageName and name
-	## Search the configs to see if this bundle is already present.
-	##   If so, populate the existing bundle into the $bundle variable
 	##
-	local inputBundle inputBundlePackageName inputBundleName bundle
+	local inputBundle inputBundlePackageName inputBundleName
 	inputBundle=$(opm alpha render "${bundleImage}" -o yaml)
 	inputBundlePackageName=$(echo "${inputBundle}" | yq e '.package' -)
 	inputBundleName=$(echo "${inputBundle}" | yq e '.name' -)
+
+	##
+	## Render and validate the provided DC reference,
+	## then load them into the $configs variable
+	##
+	local packageDir configs
+	packageDir="${configsDir}/${inputBundlePackageName}"
+	mkdir -p ${packageDir}
+	opm alpha render ${packageDir} -o yaml > ${tmpdir}/input/index.yaml
+	opm alpha validate ${tmpdir}/input
+	configs=$(cat ${tmpdir}/input/index.yaml)
+
+	## Search the configs to see if this bundle is already present.
+	##   If so, populate the existing bundle into the $bundle variable
+	local bundle
 	bundle=$(getBundle "${configs}" "${inputBundlePackageName}" "${inputBundleName}")
 
 	##
@@ -52,7 +60,6 @@ add() {
 	else
 		cp ${tmpdir}/input/index.yaml ${tmpdir}/tmp/index.yaml
 	fi
-
 
 	##
 	## Search the configs to see if the package for the input bundle is present.
@@ -91,18 +98,12 @@ add() {
 
 	## Render the final tmp/index.yaml to output/
 	## Validate the final output
-	## Format the input directory or print the final updated configs to stdout (if the input was an index image)
-	if [[ -d "${configsRef}" ]]; then
-		mv ${configsRef} ${configsRef}.bak
-		fmt ${tmpdir}/tmp ${tmpdir}/output
-		opm alpha validate ${tmpdir}/output
-		mv ${tmpdir}/output ${configsRef}
-		rm -r ${configsRef}.bak
-	else
-		opm alpha render -o yaml ${tmpdir}/tmp > ${tmpdir}/output/index.yaml
-		opm alpha validate ${tmpdir}/output
-		cat ${tmpdir}/output/index.yaml
-	fi
+	## Format the input directory
+	opm alpha render ${tmpdir}/tmp -o yaml > ${tmpdir}/output/${inputBundlePackageName}.yaml
+	opm alpha validate ${tmpdir}/output
+	mv ${packageDir} ${packageDir}.bak
+	mv ${tmpdir}/output ${packageDir}
+	rm -r ${packageDir}.bak
 }
 
 add "$1" "$2"
