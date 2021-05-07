@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-set -eu
+set -o errexit
+set -o nounset
 set -o pipefail
 
 . "$(dirname "$0")/lib/funcs.sh"
@@ -11,6 +12,7 @@ add() {
 	##
 	## Setup temporary working directories
 	##
+	local tmpdir
 	tmpdir=$(mktemp -d -t declcfg-add-XXXXXXX)
 	trap "rm -rf ${tmpdir}" EXIT
 	mkdir -p ${tmpdir}/input
@@ -23,7 +25,8 @@ add() {
 	##
 	opm alpha render ${configsRef} -o yaml > ${tmpdir}/input/index.yaml
 	opm alpha validate ${tmpdir}/input
-	local configs=$(cat ${tmpdir}/input/index.yaml)
+	local configs
+	configs=$(cat ${tmpdir}/input/index.yaml)
 
 
 	##
@@ -32,10 +35,11 @@ add() {
 	## Search the configs to see if this bundle is already present.
 	##   If so, populate the existing bundle into the $bundle variable
 	##
-	local inputBundle=$(opm alpha render "${bundleImage}" -o yaml)
-	local inputBundlePackageName=$(echo "${inputBundle}" | yq e '.package' -)
-	local inputBundleName=$(echo "${inputBundle}" | yq e '.name' -)
-	local bundle=$(getBundle "${configs}" "${inputBundlePackageName}" "${inputBundleName}")
+	local inputBundle inputBundlePackageName inputBundleName bundle
+	inputBundle=$(opm alpha render "${bundleImage}" -o yaml)
+	inputBundlePackageName=$(echo "${inputBundle}" | yq e '.package' -)
+	inputBundleName=$(echo "${inputBundle}" | yq e '.name' -)
+	bundle=$(getBundle "${configs}" "${inputBundlePackageName}" "${inputBundleName}")
 
 	##
 	## If the bundle already exists and it is the head of every channel it is in,
@@ -54,22 +58,27 @@ add() {
 	## Search the configs to see if the package for the input bundle is present.
 	## If not, unpack the bundle and build a new olm.package blob from it.
 	##
-	local package=$(getPackage "${configs}" "${inputBundlePackageName}")
+	local package
+	package=$(getPackage "${configs}" "${inputBundlePackageName}")
 	if [[ -z "${package}" ]]; then
 		mkdir -p ${tmpdir}/bundle
 		opm alpha bundle unpack -v "${bundleImage}" -o ${tmpdir}/bundle
 
-		local annotationsFile=$(find ${tmpdir}/bundle -name "annotations.yaml")
-		local manifestsDir=$(yq --exit-status eval '.annotations.["operators.operatorframework.io.bundle.manifests.v1"]' ${annotationsFile})
+		local annotationsFile manifestsDir bundleDefaultChannel
 
-		local bundleDefaultChannel=$(yq eval '.annotations.["operators.operatorframework.io.bundle.channel.default.v1"] // ""' ${annotationsFile})
+		annotationsFile=$(find ${tmpdir}/bundle -name "annotations.yaml")
+		manifestsDir=$(yq --exit-status eval '.annotations.["operators.operatorframework.io.bundle.manifests.v1"]' ${annotationsFile})
+		bundleDefaultChannel=$(yq eval '.annotations.["operators.operatorframework.io.bundle.channel.default.v1"] // ""' ${annotationsFile})
 		if [[ -z "${bundleDefaultChannel}" ]]; then
 			bundleDefaultChannel=$(yq -j eval '.' ${annotationsFile} | jq -r '.annotations["operators.operatorframework.io.bundle.channels.v1"] | split(",")[0]')
 		fi
 		yq eval-all 'select(.kind=="ClusterServiceVersion").spec.description // ""' ${tmpdir}/bundle/${manifestsDir}/* > ${tmpdir}/bundle/description
 		yq eval-all 'select(.kind=="ClusterServiceVersion").spec.icon[0].base64data // ""' ${tmpdir}/bundle/${manifestsDir}/* | base64 -d > ${tmpdir}/bundle/icon
 
-		opm alpha init -o yaml ${inputBundlePackageName} --default-channel="${bundleDefaultChannel}" --description="${tmpdir}/bundle/description" --icon="${tmpdir}/bundle/icon" >> ${tmpdir}/tmp/index.yaml
+		opm alpha init -o yaml ${inputBundlePackageName} \
+			--default-channel="${bundleDefaultChannel}" \
+			--description="${tmpdir}/bundle/description" \
+			--icon="${tmpdir}/bundle/icon" >> ${tmpdir}/tmp/index.yaml
 	fi
 
 	##

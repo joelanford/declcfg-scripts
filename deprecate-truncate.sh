@@ -1,49 +1,76 @@
 #!/usr/bin/env bash
 
-set -eu
+set -o errexit
+set -o nounset
+set -o pipefail
 
 . "$(dirname "$0")/lib/funcs.sh"
 
 deprecateTruncate() {
-	local configsRef=$1 bundle_image=$2
+	local configsRef=$1 bundleImage=$2
 
+	##
+	## Setup temporary working directories
+	##
+	local tmpdir
 	tmpdir=$(mktemp -d -t deprecatetruncate-XXXXXXX)
 	trap "rm -rf $tmpdir" EXIT
-
 	mkdir -p $tmpdir/input
 	mkdir -p $tmpdir/tmp
 	mkdir -p $tmpdir/output
 
+	##
+        ## Render and validate the provided DC reference,
+        ## then load them into the $configs variable
+        ##
 	opm alpha render ${configsRef} -o yaml > $tmpdir/input/index.yaml
 	opm alpha validate $tmpdir/input
+	local configs
+	configs=$(cat $tmpdir/input/index.yaml)
 
 
-	local configs=$(cat $tmpdir/input/index.yaml)
-        local bundle=$(getBundleFromImage "${configs}" "${bundle_image}")
 
+	##
+	## Find the bundle created from the bundle image
+	## If we can't find it, error out.
+	##
+        local bundle
+	bundle=$(getBundleFromImage "${configs}" "${bundleImage}")
 	if [[ -z "${bundle}" ]]; then
-		echo "Cannot deprecate \"${bundle_image}\": not found in index"
+		echo "Cannot deprecate \"${bundleImage}\": not found in index"
 		exit 1
 	fi
 
-        local package=$(echo "${bundle}" | yq e '.package' -)
-        local bundleName=$(echo "${bundle}" | yq e '.name' -)
-	local defChHead=$(defaultChannelHead "${configs}" "${package}")
+	##
+	## Query the package name, bundle name, and default channel head
+	##
+        local bundlePackageName bundleName defChHead
+        bundlePackageName=$(echo "${bundle}" | yq e '.package' -)
+        bundleName=$(echo "${bundle}" | yq e '.name' -)
+	defChHead=$(defaultChannelHead "${configs}" "${bundlePackageName}")
 
+	##
+	## For each channel the bundle is in, get the bundle's ancestors
+	## If any ancestor is the default channel head, error out.
+	## Otherwise, remove all of the ancestors and update the working configs variable.
+	##
 	for ch in $(getBundleChannels "${bundle}"); do
-		ancs=$(ancestors "${configs}" "${package}" "${ch}" "${bundleName}")
+		ancs=$(ancestors "${configs}" "${bundlePackageName}" "${ch}" "${bundleName}")
 		if [[ "$ancs" == "" ]]; then continue; fi
 		for anc in $ancs; do
 			if [[ "${anc}" == "${defChHead}" ]]; then
-				echo "Cannot deprecate \"${bundle_image}\" because it would cause removal of \"${anc}\", which is the head of the default channel"
+				echo "Cannot deprecate \"${bundleImage}\" because it would cause removal of \"${anc}\", which is the head of the default channel"
 				exit 1
 			fi
 		done
-		configs=$(removeBundles "${configs}" "${package}" "${ancs}")
+		configs=$(removeBundles "${configs}" "${bundlePackageName}" "${ancs}")
 	done
 
+	##
+	## Deprecate the bundle, and write the resulting configs to tmp/index.yaml
+	##
 	# TODO: if deprecate property already exists, don't add it again
-	deprecateBundle "${configs}" "${package}" "${bundleName}" > $tmpdir/tmp/index.yaml
+	deprecateBundle "${configs}" "${bundlePackageName}" "${bundleName}" > $tmpdir/tmp/index.yaml
 
 	## Render the final tmp/index.yaml to output/
         ## Validate the final output
