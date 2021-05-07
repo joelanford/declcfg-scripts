@@ -112,16 +112,17 @@ deprecateBundle() {
 }
 
 fmt() {
-        local configsDir=$1 dir=$2
+        local configsRef=$1 out=$2
 
-        local configs=$(opm alpha render "$configsDir" -o json)
-        local files=$(echo "$configs" | jq --arg dir "$dir" -sc 'group_by(if .schema=="olm.package" then .name else .package end) | .[] | {filename: ($dir + "/" + .[0].name + "/" + .[0].name + ".yaml"), blobs: . }')
+        local configs files
+        configs=$(opm alpha render "$configsRef" -o json)
+        files=$(echo "$configs" | jq --arg out "$out" -sc 'group_by(if .schema=="olm.package" then .name else .package end) | .[] | {filename: ($out + "/" + .[0].name + "/" + .[0].name + ".yaml"), blobs: . }')
 
         IFS=$'\n'
         for f in $files; do
-                local filename=$(echo "$f" | jq -r '.filename')
-                echo "Populating $filename"
-                local blobs=$(echo "$f" | yq e -P '.blobs[] | splitDoc' -)
+                local filename blobs
+                filename=$(echo "$f" | jq -r '.filename')
+                blobs=$(echo "$f" | yq e -P '.blobs[] | splitDoc' -)
                 mkdir -p $(dirname $filename)
                 echo "$blobs" > "$filename"
         done
@@ -131,19 +132,6 @@ debug() {
 	echo $@ >&2
 }
 
-#getBundleNameAndVersion() {
-#	local bundle=$1
-#	echo "${bundle}" | yq e "{\"name\": .name, \"version\": ( .properties.[] | select(.type==\"olm.package\") | .value.version )}" -
-#}
-#
-#packageBlobs() {
-#	local configs=$1
-#	local package=$2
-#
-#	echo "${configs}" | yq eval-all "select( (.schema==\"olm.package\" and .name==\"${package}\") or (.package==\"${package}\") )" -
-#}
-#
-#
 #skips() {
 #	local configs=$1
 #	local package=$2
