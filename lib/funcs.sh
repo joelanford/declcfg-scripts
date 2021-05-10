@@ -106,7 +106,7 @@ deprecateBundle() {
 	local configs=$1 package=$2 bundle=$3
 	echo "${configs}" | yq e "\
 		select( .schema == \"olm.bundle\" and .package == \"${package}\" and .name == \"${bundle}\").properties += [ \
-			{\"type\":\"olm.deprecated\"}
+			{\"type\":\"olm.deprecated\", \"value\":{}}
   		] \
 	" -
 }
