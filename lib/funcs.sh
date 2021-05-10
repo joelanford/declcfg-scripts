@@ -118,14 +118,15 @@ fmt() {
         configs=$(opm alpha render "$configsRef" -o json)
         files=$(echo "$configs" | jq --arg out "$out" -sc 'group_by(if .schema=="olm.package" then .name else .package end) | .[] | {filename: ($out + "/" + .[0].name + "/" + .[0].name + ".yaml"), blobs: . }')
 
-        IFS=$'\n'
-        for f in $files; do
+
+
+        echo "$files" | while read f; do
                 local filename blobs
                 filename=$(echo "$f" | jq -r '.filename')
                 blobs=$(echo "$f" | yq e -P '.blobs[] | splitDoc' -)
                 mkdir -p $(dirname $filename)
                 echo "$blobs" > "$filename"
-        done
+	done
 }
 
 debug() {
