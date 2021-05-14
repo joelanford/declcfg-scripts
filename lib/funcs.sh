@@ -116,7 +116,7 @@ fmt() {
 
         local configs files
         configs=$(opm alpha render "$configsRef" -o json)
-        files=$(echo "$configs" | jq --arg out "$out" -sc 'group_by(if .schema=="olm.package" then .name else .package end) | .[] | {filename: ($out + "/" + .[0].name + "/" + .[0].name + ".yaml"), blobs: . }')
+        files=$(echo "$configs" | jq --arg out "$out" -sc 'group_by(if .schema=="olm.package" then .name else .package end) | .[] | {filename: ($out + "/" + .[0].name + "/index.yaml"), blobs: . }')
 
 
 
