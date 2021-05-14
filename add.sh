@@ -6,6 +6,9 @@ set -o pipefail
 
 . "$(dirname "$0")/lib/funcs.sh"
 
+: ${MODE:=none}
+: ${OVERWRITE_LATEST=false}
+
 add() {
 	local configsDir=$1 bundleImage=$2
 
@@ -41,13 +44,14 @@ add() {
 	packageDir="${configsDir}/${inputBundlePackageName}"
 	mkdir -p ${packageDir}
 	opm alpha render ${packageDir} -o yaml > ${tmpdir}/input/index.yaml
-	opm alpha validate ${tmpdir}/input
+	#opm alpha validate ${tmpdir}/input
 	configs=$(cat ${tmpdir}/input/index.yaml)
 
 	## Search the configs to see if this bundle is already present.
 	##   If so, populate the existing bundle into the $bundle variable
 	local bundle
 	bundle=$(getBundle "${configs}" "${inputBundlePackageName}" "${inputBundleName}")
+
 
 	##
 	## If the bundle already exists and it is the head of every channel it is in,
@@ -93,13 +97,18 @@ add() {
 	##
 	echo "${inputBundle}" >> ${tmpdir}/tmp/index.yaml
 
+	## Inherit ancestor bundles into descendent channels in replaces mode
+	if [[ "$MODE" == "replaces" ]]; then
+		$(dirname "$0")/inherit-channels.py ${tmpdir}/tmp/index.yaml
+	fi
+
 	## Inline bundle objects for the added bundle
 	declcfg-inline-bundles ${tmpdir}/tmp ${bundleImage}
 
 	## Render the final tmp/index.yaml to output/
 	## Validate the final output
 	## Format the input directory
-	opm alpha render ${tmpdir}/tmp -o yaml > ${tmpdir}/output/${inputBundlePackageName}.yaml
+	opm alpha render ${tmpdir}/tmp -o yaml > ${tmpdir}/output/index.yaml
 	opm alpha validate ${tmpdir}/output
 	mv ${packageDir} ${packageDir}.bak
 	mv ${tmpdir}/output ${packageDir}

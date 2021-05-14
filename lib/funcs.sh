@@ -99,6 +99,11 @@ removeIfLatest() {
                 fi
         done
 
+        if [[ "${OVERWRITE_LATEST}" != "true" ]]; then
+                echo "Cannot overwrite \"${bundleName}\", OVERWRITE_LATEST must be set to \"true\"" >&2
+                exit 1
+        fi
+
         removeBundles "${configs}" "${bundlePackageName}" "${bundleName}"
 }
 
