@@ -86,10 +86,17 @@ add() {
 		yq eval-all 'select(.kind=="ClusterServiceVersion").spec.description // ""' ${tmpdir}/bundle/${manifestsDir}/* > ${tmpdir}/bundle/description
 		yq eval-all 'select(.kind=="ClusterServiceVersion").spec.icon[0].base64data // ""' ${tmpdir}/bundle/${manifestsDir}/* | base64 -d > ${tmpdir}/bundle/icon
 
+		local iconArg iconSize
+		iconArg=""
+		iconSize=$(wc -c ${tmpdir}/bundle/icon | cut -d' ' -f1)
+		if [[ "$iconSize" -gt 0 ]]; then
+			iconArg="--icon=\"${tmpdir}/bundle/icon\""
+		fi
+
 		opm alpha init -o yaml ${inputBundlePackageName} \
 			--default-channel="${bundleDefaultChannel}" \
 			--description="${tmpdir}/bundle/description" \
-			--icon="${tmpdir}/bundle/icon" >> ${tmpdir}/tmp/index.yaml
+			${iconArg} >> ${tmpdir}/tmp/index.yaml
 	fi
 
 	##
